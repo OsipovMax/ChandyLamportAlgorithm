@@ -57,14 +57,16 @@ class Process:
             for _, _, body in self.channel.consume(queue = queue_title, auto_ack = True):
                 message = body.decode('utf-8')
                 if message == 'marker':
+                    # the message - "marker" occurs for the first time
                     if self.is_marked == False:
                         self.record_state()
                         self.send_message('marker')
                         self.is_marked = True
                         self.send_message('T' + str(self.id))
-                        self.send_message('Y' + str(self.id))         
+                        self.send_message('Y' + str(self.id))
+                    # the process has already accepted the message - " marker"       
                     else:
-                        for _, _, body in self.channel.consume(queue = queue_title, auto_ack = True, inactivity_timeout = 3 ):
+                        for _, _, body in self.channel.consume(queue = queue_title, auto_ack = True, inactivity_timeout = 3):
                             if body is not None:
                                 if body.decode('utf-8') != 'marker':
                                     self.states.append(message)
@@ -76,6 +78,7 @@ class Process:
                 self.channel.cancel()
     
     def recover(self):
+        """Recovering messages that came after the message - " marker " """
         if self.__message_storage:
             for neighbor in self.neighbors:
                 self.channel.queue_declare(queue = str(self.id) + str(neighbor))

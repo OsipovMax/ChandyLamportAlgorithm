@@ -1,6 +1,5 @@
 from process import Process
 import threading
-import time
 
 class Worker:
     def __init__(self, id, dstr_sys_model):
