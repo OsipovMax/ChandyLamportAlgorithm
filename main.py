@@ -1,29 +1,46 @@
-from process import Process
 from ds_model import DSModel
-import threading
+from worker import Worker
+import pika
 
-# Number of processes in the distributed system model
-process_count = 2
+# clearing message queues (in case of incorrect behavior)
+def clear_rabbitmq_queues():
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host = 'localhost'))
+    channel = connection.channel()
+    for outcome_point in range(3):
+        for income_point in range(3):
+            if outcome_point != income_point:
+                channel.queue_purge(queue = str(outcome_point) + str(income_point))
+    channel.close()
+    connection.close()
 
-def process_work(process: Process) -> None:
-    if process.id == 0:
-        #initiator snapshot
-        process.is_initiator = True
-        process.record_state()
-        print(process.id)
-        return
-    print(process.id)
+# creating message queues, if they haven't been created yet
+def create_rabbitmq_queues():
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host = 'localhost'))
+    channel = connection.channel()
+    for outcome_point in range(3):
+        for income_point in range(3):
+            if outcome_point != income_point:
+                channel.queue_declare(queue = str(outcome_point) + str(income_point))
+    channel.close()
+    connection.close()
 
 def main():
-    threads = []
-    distributed_system_model = DSModel(process_count)
-    distributed_system_model.generate_model()
-    for num in range(process_count):
-        thread = threading.Thread(target=process_work, args=(distributed_system_model.processes[num],))
-        threads.append(thread)
-        thread.start()
-    for tread in threads:
-        tread.join()
-
+    workers = []
+    distributed_system_model = DSModel()
+    for num in range(distributed_system_model.process_count):
+        worker = Worker(num, distributed_system_model)
+        workers.append(worker)
+        worker.start_work()
+    for worker in workers:
+        worker.finish_work()
+    glob_snapshot = distributed_system_model.get_global_snapshot()
+    # if any of the processes did not take a local snapshot, the global snapshot is missing
+    if len(glob_snapshot) == 0:
+        print('Global snapshot of the system is not made')
+    else:
+        print('Global snapshot: ', distributed_system_model.get_global_snapshot())
+    
 if __name__ == "__main__":
+    create_rabbitmq_queues()
     main()
+    clear_rabbitmq_queues()
